@@ -1,0 +1,115 @@
+#!/usr/bin/env ruby
+require "rainbow"
+require 'getoptlong'
+
+require "codesake_commons"
+require "links"
+
+APPNAME = File.basename($0)
+
+logger = Codesake::Commons::Logging.instance
+opts = GetoptLong.new(
+  [ '--help', '-h', GetoptLong::NO_ARGUMENT ],
+  [ '--version', '-v', GetoptLong::NO_ARGUMENT ],
+  [ '--bulk', '-b', GetoptLong::REQUIRED_ARGUMENT ],
+  [ '--proxy', '-P',  GetoptLong::REQUIRED_ARGUMENT ],
+  [ '--code', '-c', GetoptLong::NO_ARGUMENT ],
+  [ '--robots', '-r', GetoptLong::NO_ARGUMENT ]
+)
+trap("INT") { logger.die("[INTERRUPTED]") }
+
+
+list=[]
+robots=false
+bulk=false
+show_code=false
+proxy={:host=>nil, :port=>-1}
+
+opts.each do |opt, arg|
+  case opt
+  when '--help'
+    puts "usage: links [-bvh] [filename]"
+    puts "   -b filename: loads the url list from a plain text file"
+    puts "   -r : parse robots.txt and make requests to disallowed urls"
+    puts "   -c : shows the return code instead of human readable answer"
+    puts "   -P host:port : connect using a proxy server. Useful in combination with Paros, Owasp Zap and other"
+    puts "   -v : shows version information"
+    puts "   -h : shows this help"
+    exit 0
+  when '--version'
+    puts "#{Codesake::Links::VERSION}"
+    exit 0
+  when '--code'
+    show_code = true
+  when '--proxy'
+    proxy[:host]=arg.split(':')[0]
+    proxy[:port]=arg.split(':')[1].to_i
+  when '--robots'
+    robots=true
+  when '--bulk'
+    bulk=true
+    if ! File.exists?(arg)
+      puts "links: file not found (#{arg})".color(:red)
+      exit 1
+    end
+    list = File.open(arg).readlines
+    if list.count <= 0
+      puts "links: invalid url list".color(:red)
+      exit 1
+    end
+  end
+end
+
+target = ARGV[0]
+logger.helo "#{APPNAME} v#{Codesake::Links::VERSION} (C) 2013 - paolo@armoredcode.com is starting up"
+
+
+list<<target if list.empty?
+
+logger.die("links: missing target") if list[0].nil?
+
+if robots
+  list = Codesake::Links::Api.robots(target)
+  logger.err "#{target}: no robots.txt found\n" if list.empty?
+end
+
+list.each do |l|
+  if robots or bulk
+    if ! l.start_with? '/'
+      l = '/'+l.chomp
+    end
+    if ! target.start_with? 'http://' and ! target.start_with? 'https://'
+      #defaulting to HTTP when no protocol has been supplied
+      target = "http://"+target
+    end
+
+    logger.log "#{target}#{l}:"
+    start = Time.now
+    code = Codesake::Links::Api.code(target+l, proxy)
+    stop = Time.now
+  else
+    logger.log "#{l}:"
+    start = Time.now
+    code = Codesake::Links::Api.code(l, proxy)
+    stop = Time.now
+  end
+
+  str=Codesake::Links::Api.human(code)
+
+  Codesake::Links::Utils.print_str(logger, str, start, stop)     unless show_code
+  Codesake::Links::Utils.print_code(logger, str, code, start, stop) if show_code
+ 
+
+  if code == 301 or code == 302
+    start = Time.now
+    new_link = Codesake::Links::Api.follow(l, proxy)
+    stop = Time.now
+    logger.log "following from #{l} to #{new_link}\n"
+    str=Codesake::Links::Api.human(code)
+
+    Codesake::Links::Utils.print_str(logger, str, start, stop)     unless show_code
+    Codesake::Links::Utils.print_code(logger, str, code, start, stop) if show_code
+
+  end
+
+end
