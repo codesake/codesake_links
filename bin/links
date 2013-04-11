@@ -3,7 +3,7 @@ require "rainbow"
 require 'getoptlong'
 
 require "codesake_commons"
-require "links"
+require "codesake_links"
 
 APPNAME = File.basename($0)
 
