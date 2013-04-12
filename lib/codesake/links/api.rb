@@ -32,35 +32,30 @@ module Codesake
       end
 
       # TESTING: SPIDERS, ROBOTS, AND CRAWLERS (OWASP-IG-001)
-      def self.robots(site, only_disallow=true)
+      def self.robots(site)
 
-        if (! site.start_with? 'http://') and (! site.start_with? 'https://')
-          site = 'http://'+site
-        end
+        site = 'http://'+site unless site.start_with? 'http://' or site.start_with? 'https://'
+        
 
-        list = []
+        allow_list = []
+        disallow_list = []
+
         begin
           res=Net::HTTP.get_response(URI(site+'/robots.txt'))
-          if (res.code != "200")
-            return []
-          end
+          return {:status=>:KO, :allow_list=>[], :disallow_list=>[], :error=>"robots.txt response code was #{res.code}"} if (res.code != "200")
+
 
           res.body.split("\n").each do |line|
-            if only_disallow
-              if (line.downcase.start_with?('disallow'))
-                list << line.split(":")[1].strip.chomp
-              end
-            else
-              if (line.downcase.start_with?('allow') or line.downcase.start_with?('disallow'))
-                list << line.split(":")[1].strip.chomp
-              end
-            end
+
+            disallow_list << line.split(":")[1].strip.chomp if (line.downcase.start_with?('disallow'))
+            allow_list << line.split(":")[1].strip.chomp if (line.downcase.start_with?('allow'))
+
           end
-        rescue
-          return []
+        rescue Exception => e
+          return {:status=>:KO, :allow_list=>[], :disallow_list=>[], :error=>e.message}
         end
 
-        list
+        {:status=>:OK, :allow_list=>allow_list, :disallow_list=>disallow_list, :error=>""}
       end
 
       def self.follow(url, proxy)

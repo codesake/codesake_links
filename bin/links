@@ -64,41 +64,35 @@ target = ARGV[0]
 logger.helo "#{APPNAME} v#{Codesake::Links::VERSION} (C) 2013 - paolo@armoredcode.com is starting up"
 
 
-list<<target if list.empty?
+# list<<target if list.empty?
 
-logger.die("links: missing target") if list[0].nil?
+logger.die("missing target") if target.nil?
+logger.die("no -b or -r option specified") unless bulk or robots
 
 if robots
-  list = Codesake::Links::Api.robots(target)
-  logger.err "#{target}: no robots.txt found\n" if list.empty?
+  res = Codesake::Links::Api.robots(target)
+  list = res[:disallow_list]
+  logger.err "#{target}: no robots.txt found (#{res[:error]})\n" if res[:status] == :KO
+  logger.ok "no disallowed entries to test on #{target}" if list.empty?
+  logger.helo "leaving"
+  Kernel.exit(0)
 end
 
-list.each do |l|
-  if robots or bulk
-    if ! l.start_with? '/'
-      l = '/'+l.chomp
-    end
-    if ! target.start_with? 'http://' and ! target.start_with? 'https://'
-      #defaulting to HTTP when no protocol has been supplied
-      target = "http://"+target
-    end
 
-    logger.log "#{target}#{l}:"
-    start = Time.now
-    code = Codesake::Links::Api.code(target+l, proxy)
-    stop = Time.now
-  else
-    logger.log "#{l}:"
-    start = Time.now
-    code = Codesake::Links::Api.code(l, proxy)
-    stop = Time.now
-  end
+list.each do |l|
+  l = l.chomp if l.end_with? "\n"
+  l = '/'+l unless l.start_with? '/'
+
+  url = target + l
+  start = Time.now
+  code = Codesake::Links::Api.code(url, proxy)
+  stop = Time.now
 
   str=Codesake::Links::Api.human(code)
 
-  Codesake::Links::Utils.print_str(logger, str, start, stop)     unless show_code
-  Codesake::Links::Utils.print_code(logger, str, code, start, stop) if show_code
- 
+  Codesake::Links::Utils.print_str(url, logger, code, start, stop)     unless show_code
+  Codesake::Links::Utils.print_code(url, logger, str, code, start, stop) if show_code
+
 
   if code == 301 or code == 302
     start = Time.now
