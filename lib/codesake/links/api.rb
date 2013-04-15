@@ -92,14 +92,18 @@ module Codesake
         begin
           uri = URI(url)
           if uri.scheme == 'http'
-            Net::HTTP::Proxy(proxy[:host], proxy[:port]).start(uri.host) {|http|
-              if (method == :get)
-                res = http.get(uri.request_uri)
-              else
-                res = http.head(uri.request_uri)
-              end
-              return res
-            }
+            unless proxy.nil?
+              Net::HTTP::Proxy(proxy[:host], proxy[:port]).start(uri.host) {|http|
+                if (method == :get)
+                  res = http.get(uri.request_uri)
+                else
+                  res = http.head(uri.request_uri)
+                end
+                return res
+              }
+            else
+              res = Net::HTTP.get_response(URI(url))
+            end
             # res = Net::HTTP.get_response(URI(url))
           else
             request=Net::HTTP.new(uri.host, uri.port)

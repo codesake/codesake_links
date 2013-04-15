@@ -74,6 +74,10 @@ if robots
   list = res[:disallow_list]
   logger.err "#{target}: no robots.txt found (#{res[:error]})\n" if res[:status] == :KO
   logger.ok "no disallowed entries to test on #{target}" if list.empty?
+  logger.ok "found #{list.size} disallowed url(s) on #{target}" unless list.empty?
+  list.each do |l|
+    logger.log "#{l} - #{Codesake::Links::Api.code(target+l, nil)}"
+  end
   logger.helo "leaving"
   Kernel.exit(0)
 end
@@ -90,8 +94,8 @@ list.each do |l|
 
   str=Codesake::Links::Api.human(code)
 
-  Codesake::Links::Utils.print_str(url, logger, code, start, stop)     unless show_code
-  Codesake::Links::Utils.print_code(url, logger, str, code, start, stop) if show_code
+  Codesake::Links::Utils.print_str(url, logger, str, start, stop)     unless show_code
+  Codesake::Links::Utils.print_code(url, logger, code, start, stop)   if show_code
 
 
   if code == 301 or code == 302
@@ -101,8 +105,8 @@ list.each do |l|
     logger.log "following from #{l} to #{new_link}\n"
     str=Codesake::Links::Api.human(code)
 
-    Codesake::Links::Utils.print_str(logger, str, start, stop)     unless show_code
-    Codesake::Links::Utils.print_code(logger, str, code, start, stop) if show_code
+    Codesake::Links::Utils.print_str(logger, str, start, stop)    unless show_code
+    Codesake::Links::Utils.print_code(logger, code, start, stop)  if show_code
 
   end
 
