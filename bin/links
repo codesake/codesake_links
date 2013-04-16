@@ -84,30 +84,35 @@ end
 
 
 list.each do |l|
-  l = l.chomp if l.end_with? "\n"
-  l = '/'+l unless l.start_with? '/'
+  unless l.start_with? "#"
 
-  url = target + l
-  start = Time.now
-  code = Codesake::Links::Api.code(url, proxy)
-  stop = Time.now
+    l = l.chomp if l.end_with? "\n"
+    l = '/'+l unless l.start_with? '/'
 
-  str=Codesake::Links::Api.human(code)
-
-  Codesake::Links::Utils.print_str(url, logger, str, start, stop)     unless show_code
-  Codesake::Links::Utils.print_code(url, logger, code, start, stop)   if show_code
-
-
-  if code == 301 or code == 302
+    url = target + l
     start = Time.now
-    new_link = Codesake::Links::Api.follow(l, proxy)
+    code = Codesake::Links::Api.code(url, nil)
     stop = Time.now
-    logger.log "following from #{l} to #{new_link}\n"
+
     str=Codesake::Links::Api.human(code)
 
-    Codesake::Links::Utils.print_str(logger, str, start, stop)    unless show_code
-    Codesake::Links::Utils.print_code(logger, code, start, stop)  if show_code
+    if code == "200"
+      Codesake::Links::Utils.print_str(url, logger, str, start, stop)     unless show_code 
+      Codesake::Links::Utils.print_code(url, logger, code, start, stop)   if show_code 
+    end
 
+
+    if code == 301 or code == 302
+      start = Time.now
+      new_link = Codesake::Links::Api.follow(l, proxy)
+      stop = Time.now
+      logger.log "following from #{l} to #{new_link}\n"
+      str=Codesake::Links::Api.human(code)
+
+      Codesake::Links::Utils.print_str(logger, str, start, stop)    unless show_code
+      Codesake::Links::Utils.print_code(logger, code, start, stop)  if show_code
+
+    end
   end
 
 end
