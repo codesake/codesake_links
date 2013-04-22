@@ -11,8 +11,8 @@ module Codesake
       end
 
       def self.print_code(url, logger, code, start, stop)
-        logger.ok "#{url}: #{code} (#{((stop-start) * 1000).round} msec)" if code == 200
-        logger.log "#{url}: #{code} (#{((stop-start) * 1000).round} msec)" unless code == 200
+        logger.ok "#{url}: #{code} (#{((stop-start) * 1000).round} msec)" if code == "200"
+        logger.warn "#{url}: #{code} (#{((stop-start) * 1000).round} msec)" unless code == "200"
 
         return
       end

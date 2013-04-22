@@ -76,7 +76,7 @@ if robots
   logger.ok "no disallowed entries to test on #{target}" if list.empty?
   logger.ok "found #{list.size} disallowed url(s) on #{target}" unless list.empty?
   list.each do |l|
-    logger.log "#{l} - #{Codesake::Links::Api.code(target+l, nil)}"
+    logger.ok "#{l} - #{Codesake::Links::Api.code(target+l, nil)}"
   end
   logger.helo "leaving"
   Kernel.exit(0)
