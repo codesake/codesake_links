@@ -2,12 +2,33 @@
 require "rainbow"
 require 'getoptlong'
 
-require "codesake_commons"
-require "codesake_links"
+require 'anemone'
+require "codesake-commons"
+require "links"
+
+require 'data_mapper'
+require 'dm-sqlite-adapter'
+
+class Link
+  include DataMapper::Resource
+
+  property :id,           Serial
+  property :url,          String, :length=>256, :required => true
+  property :created_at,   DateTime, :default=>DateTime.now
+  property :updated_at,   DateTime, :default=>DateTime.now
+end
+
+POST_WITHOUT_SLASH  = %r[\d{4}\/\d{2}\/[^\/]+$]
+POST_WITH_SLASH     = %r[\d{4}\/\d{2}\/[\w-]+\/$]
+ANY_POST            = Regexp.union POST_WITHOUT_SLASH, POST_WITH_SLASH
+ANY_PAGE            = %r[page\/\d+]
+ANY_PATTERN         = Regexp.union ANY_PAGE, ANY_POST
 
 APPNAME = File.basename($0)
 
 logger = Codesake::Commons::Logging.instance
+logger.toggle_syslog
+
 opts = GetoptLong.new(
   [ '--help', '-h', GetoptLong::NO_ARGUMENT ],
   [ '--version', '-v', GetoptLong::NO_ARGUMENT ],
@@ -60,14 +81,17 @@ opts.each do |opt, arg|
   end
 end
 
-target = ARGV[0]
-logger.helo "#{APPNAME} v#{Codesake::Links::VERSION} (C) 2013 - paolo@armoredcode.com is starting up"
+target = ARGV.shift
+logger.helo APPNAME, Codesake::Links::VERSION
 
+DataMapper.setup(:default, "sqlite3://#{File.join(Dir.pwd, target)}")
+DataMapper.finalize
+DataMapper.auto_upgrade!
 
 # list<<target if list.empty?
 
 logger.die("missing target") if target.nil?
-logger.die("no -b or -r option specified") unless bulk or robots
+# logger.die("no -b or -r option specified") unless bulk or robots
 
 if robots
   res = Codesake::Links::Api.robots(target)
@@ -78,41 +102,65 @@ if robots
   list.each do |l|
     logger.ok "#{l} - #{Codesake::Links::Api.code(target+l, nil)}"
   end
-  logger.helo "leaving"
+  logger.bye
   Kernel.exit(0)
 end
 
+if bulk
 
-list.each do |l|
-  unless l.start_with? "#"
+  list.each do |l|
+    unless l.start_with? "#"
 
-    l = l.chomp if l.end_with? "\n"
-    l = '/'+l unless l.start_with? '/'
+      l = l.chomp if l.end_with? "\n"
+      l = '/'+l unless l.start_with? '/'
 
-    url = target + l
-    start = Time.now
-    code = Codesake::Links::Api.code(url, nil)
-    stop = Time.now
-
-    str=Codesake::Links::Api.human(code)
-
-    if code == "200"
-      Codesake::Links::Utils.print_str(url, logger, str, start, stop)     unless show_code 
-      Codesake::Links::Utils.print_code(url, logger, code, start, stop)   if show_code 
-    end
-
-
-    if code == 301 or code == 302
+      url = target + l
       start = Time.now
-      new_link = Codesake::Links::Api.follow(l, proxy)
+      code = Codesake::Links::Api.code(url, nil)
       stop = Time.now
-      logger.log "following from #{l} to #{new_link}\n"
+
       str=Codesake::Links::Api.human(code)
 
-      Codesake::Links::Utils.print_str(logger, str, start, stop)    unless show_code
-      Codesake::Links::Utils.print_code(logger, code, start, stop)  if show_code
+      if code == "200"
+        Codesake::Links::Utils.print_str(url, logger, str, start, stop)     unless show_code 
+        Codesake::Links::Utils.print_code(url, logger, code, start, stop)   if show_code 
+      end
 
+
+      if code == 301 or code == 302
+        start = Time.now
+        new_link = Codesake::Links::Api.follow(l, proxy)
+        stop = Time.now
+        logger.log "following from #{l} to #{new_link}\n"
+        str=Codesake::Links::Api.human(code)
+
+        Codesake::Links::Utils.print_str(logger, str, start, stop)    unless show_code
+        Codesake::Links::Utils.print_code(logger, code, start, stop)  if show_code
+
+      end
     end
-  end
 
+  end
 end
+
+logger.log "start crawling #{target}"
+
+Anemone.crawl(target) do |anemone|
+  anemone.on_every_page do |page|
+    logger.log page.url
+  end
+end
+# Anemone.crawl(target) do |anemone|
+#   anemone.focus_crawl do |page|
+#     page.links.keep_if { |link| link.to_s.match(ANY_PATTERN) } # crawl only links that are pages or blog posts
+#   end
+#   anemone.on_pages_like(POST_WITH_SLASH) do |page|
+#     title = page.doc.at_xpath("//div[@role='main']/header/h1").text rescue nil
+#     tag = page.doc.at_xpath("//header/div[@class='post-data']/p/a").text rescue nil
+
+#     if title and tag
+#       post = {title: title, tag: tag}
+#       logger.log "Inserting #{post.inspect}"
+#     end
+#   end
+# end

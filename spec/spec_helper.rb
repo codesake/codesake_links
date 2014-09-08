@@ -1,2 +1,2 @@
-require 'codesake_links'
+require 'links'
 require 'webmock/rspec'

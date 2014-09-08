@@ -24,8 +24,9 @@ Gem::Specification.new do |s|
   s.add_development_dependency "rspec"
   s.add_development_dependency 'webmock'
 
+  s.add_dependency 'anemone'
   s.add_dependency "nokogiri"
   s.add_dependency "mechanize"
 
-  s.add_dependency "codesake_commons"
+  s.add_dependency "codesake-commons"
 end
