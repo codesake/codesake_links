@@ -25,6 +25,8 @@ Gem::Specification.new do |s|
   s.add_development_dependency 'webmock'
 
   s.add_dependency 'anemone'
+  s.add_dependency 'data_mapper'
+  s.add_dependency 'dm-sqlite-adapter'
   s.add_dependency "nokogiri"
   s.add_dependency "mechanize"
 

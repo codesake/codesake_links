@@ -9,13 +9,31 @@ require "links"
 require 'data_mapper'
 require 'dm-sqlite-adapter'
 
+class Scan
+  include DataMapper::Resource
+
+  property :id,           Serial
+  property :base,         String, :length=>256, :required => true
+  property :tool,         String
+  property :version,      String
+  property :created_at,   DateTime, :default=>DateTime.now
+  property :updated_at,   DateTime, :default=>DateTime.now
+
+end
+
 class Link
   include DataMapper::Resource
 
   property :id,           Serial
-  property :url,          String, :length=>256, :required => true
+  property :path,         String, :length=>256, :required => true
+  property :q,            String, :length=>256
+  property :tested,       Boolean, :default=>false
   property :created_at,   DateTime, :default=>DateTime.now
   property :updated_at,   DateTime, :default=>DateTime.now
+
+  def self.all_dynamic
+    Link.all(:q.not => nil)
+  end
 end
 
 POST_WITHOUT_SLASH  = %r[\d{4}\/\d{2}\/[^\/]+$]
@@ -32,19 +50,22 @@ logger.toggle_syslog
 opts = GetoptLong.new(
   [ '--help', '-h', GetoptLong::NO_ARGUMENT ],
   [ '--version', '-v', GetoptLong::NO_ARGUMENT ],
+  [ '--dynamic', '-d', GetoptLong::NO_ARGUMENT ],
   [ '--bulk', '-b', GetoptLong::REQUIRED_ARGUMENT ],
   [ '--proxy', '-P',  GetoptLong::REQUIRED_ARGUMENT ],
-  [ '--code', '-c', GetoptLong::NO_ARGUMENT ],
+  [ '--crawl', '-c', GetoptLong::NO_ARGUMENT ],
   [ '--robots', '-r', GetoptLong::NO_ARGUMENT ]
 )
 trap("INT") { logger.die("[INTERRUPTED]") }
 
 
-list=[]
-robots=false
-bulk=false
-show_code=false
-proxy={:host=>nil, :port=>-1}
+list      = []
+robots    = false
+bulk      = false
+show_code = false
+crawl     = false
+dynamic   = false
+proxy     = {:host=>nil, :port=>-1}
 
 opts.each do |opt, arg|
   case opt
@@ -57,11 +78,13 @@ opts.each do |opt, arg|
     puts "   -v : shows version information"
     puts "   -h : shows this help"
     exit 0
+  when '--dynamic'
+    dynamic = true
   when '--version'
     puts "#{Codesake::Links::VERSION}"
     exit 0
-  when '--code'
-    show_code = true
+  when '--crawl'
+    crawl= true
   when '--proxy'
     proxy[:host]=arg.split(':')[0]
     proxy[:port]=arg.split(':')[1].to_i
@@ -84,7 +107,8 @@ end
 target = ARGV.shift
 logger.helo APPNAME, Codesake::Links::VERSION
 
-DataMapper.setup(:default, "sqlite3://#{File.join(Dir.pwd, target)}")
+db_name = URI.parse(target).host.gsub('.','_')
+DataMapper.setup(:default, "sqlite3://#{File.join(Dir.pwd, db_name)}.db")
 DataMapper.finalize
 DataMapper.auto_upgrade!
 
@@ -143,13 +167,43 @@ if bulk
   end
 end
 
-logger.log "start crawling #{target}"
-
-Anemone.crawl(target) do |anemone|
-  anemone.on_every_page do |page|
-    logger.log page.url
+if dynamic
+  list = Link.all_dynamic
+  logger.log "#{list.size} dynamic urls found during last crawl"
+  list.each do |l|
+    logger.ok "#{l.path}/#{l.q}"
   end
 end
+
+if crawl
+  s=Scan.first(:base=>target)
+  unless s.nil?
+    s=Scan.new
+    s.base=target
+    s.tool=APPNAME
+    s.version = VERSION
+    s.save
+  end
+
+  logger.log "start crawling #{target}"
+
+  Anemone.crawl(target, :redirect_limit=>2, :depth_limit => 5) do |anemone|
+    anemone.on_every_page do |page|
+      l = Link.first(:path=>page.url.path)
+      if l.nil?
+        l = Link.new
+        l.path = page.url.path
+        l.q = page.url.query
+        saved = l.save
+        logger.ok "adding #{page.url.path}" if saved
+        logger.err "error saving #{page.url.path}: #{l.errors.inspect}" unless saved
+      else
+        logger.warn "skipping #{page.url.path}"
+      end
+    end
+  end
+end
+
 # Anemone.crawl(target) do |anemone|
 #   anemone.focus_crawl do |page|
 #     page.links.keep_if { |link| link.to_s.match(ANY_PATTERN) } # crawl only links that are pages or blog posts
