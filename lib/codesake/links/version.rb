@@ -1,5 +1,5 @@
 module Codesake
   module Links
-    VERSION = "0.71"
+    VERSION = "0.75"
   end
 end
