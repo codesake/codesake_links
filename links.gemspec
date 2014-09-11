@@ -3,7 +3,7 @@ $:.push File.expand_path("../lib", __FILE__)
 require "codesake/links/version"
 
 Gem::Specification.new do |s|
-  s.name        = "codesake_links"
+  s.name        = "links"
   s.version     = Codesake::Links::VERSION
   s.authors     = ["Paolo Perego"]
   s.email       = ["paolo@armoredcode.com"]
